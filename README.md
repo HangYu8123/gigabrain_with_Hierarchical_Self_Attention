@@ -33,6 +33,9 @@ Leveraging the efficient world-model data engine and innovations in model archit
 
 ![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_performance.png)
 
+- Paper Towel Preparation*: Compared to the release with GigaBrain-0, the "Paper Towel Preparation" task has been re-evaluated under a new setting.
+
+
 ## 🤖 RoboChallenge
 
 Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieve performance that easily surpasses $\pi_{0.5}$.
@@ -110,11 +113,13 @@ To support custom robot-type data, you can add a newly initialized action-specif
 
 Then point your training config to the produced `norm_stats.json` (see examples in `configs`).
 
-### 2. Download GigaBrain-0 checkpoints from Hugging Face
+### 2. Download GigaBrain-0/0.1 checkpoints from Hugging Face
 
 |         Model         |                                  HF Link                                   |                                                           Description                                                            |
 | :-------------------: | :------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------: |
+| GigaBrain-0.1-3.5B-Base | 🤗 [Huggingface](https://huggingface.co/open-gigaai/GigaBrain-0.1-3.5B-Base) | More generalizable, more robust, and more powerful. |
 | GigaBrain-0-3.5B-Base | 🤗 [Huggingface](https://huggingface.co/open-gigaai/GigaBrain-0-3.5B-Base) | The current release of the model excludes depth images and intermediate 2D manipulation trajectories for more user-friendly use. |
+
 
 ### 3. Training
 
