@@ -11,7 +11,7 @@
 </div>
 
 ## 📰 News
-- **`[2026/02/04]`** 🎉 GigaBrain-0.1 achieved 2nd place on the RoboChallenge leaderboard.
+- **`[2026/02/09]`** 🎉 GigaBrain-0.1 achieved 1st place on the RoboChallenge leaderboard.
 - **`[2026/02/02]`** Released GigaBrain-0.1 model weights, which follow the same usage as GigaBrain-0 but achieve better performance.
 - **`[2025/11/27]`** Released GigaBrain-0 model weights. This version of the model excludes depth images and intermediate 2D manipulation trajectories for more user-friendly use. However, the code supports these features — if your dataset contains them and you wish to use them, simply enable the corresponding options in the configuration.
 - **`[2025/11/27]`** Released the model architecture, as well as the pre-training and post-training implementations.
@@ -38,7 +38,7 @@ Leveraging the efficient world-model data engine and innovations in model archit
 
 ## 🤖 RoboChallenge
 
-Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieve performance that easily surpasses $\pi_{0.5}$.
+Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieved 1st place on the leaderboard.
 
 ![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge.png)
 
