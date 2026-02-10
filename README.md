@@ -40,7 +40,7 @@ Leveraging the efficient world-model data engine and innovations in model archit
 
 Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieved 1st place on the leaderboard.
 
-![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge_1st.png)
+![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge.png)
 
 ## ⚡ Installation
 
