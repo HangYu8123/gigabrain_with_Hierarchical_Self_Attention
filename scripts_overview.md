@@ -96,11 +96,11 @@
 ## giga_brain_0/ Directory
 
 ### `giga_brain_0/__init__.py`
-**Summary:** Module initialization file exposing GigaBrain0Trainer and GigaBrain0Transform classes.
-**Dependencies:** Internal imports from `giga_brain_0_trainer`, `giga_brain_0_transforms`
+**Summary:** Package initialization exposing core training/transform components and Hierarchical Self-Attention (HSA) module.
+**Dependencies:** Internal imports from `giga_brain_0_trainer`, `giga_brain_0_transforms`, `hierarchical_self_attention`
 
 #### Modules:
-- Exports: `GigaBrain0Trainer`, `GigaBrain0Transform`
+- Exports: `GigaBrain0Trainer`, `GigaBrain0Transform`, `HierarchicalSelfAttention`, `HierarchicalAttentionBias`, `HierarchyNode`, `HSAPreProcessor`, `build_gigabrain_hierarchy_meta`, `build_signal_hierarchy`, `apply_hsa_bias_hooks`
 
 ---
 
@@ -120,13 +120,44 @@
 
 ---
 
+### `giga_brain_0/hierarchical_self_attention.py`
+**Summary:** Complete implementation of Hierarchical Self-Attention (arXiv:2509.15448, NeurIPS 2025) for GigaBrain-0. Provides standalone HSA module (Algorithms 1-3), learnable block-structured attention bias for model integration, pre-processor module, and utilities for hierarchy construction and hook registration. Designed for drop-in integration via module surgery without modifying giga-models.
+**Dependencies:** `torch`, `torch.nn`, `torch.nn.functional`, `math`, `dataclasses`, `typing`, `warnings`
+
+#### Data Structures:
+- `HierarchyNode`: Dataclass representing tree node with name, start/end token indices, children list, depth. Properties: `num_leaves` (int), `is_leaf` (bool).
+
+#### Functions:
+- `build_signal_hierarchy(token_boundaries: dict, total_seq_len: int) -> HierarchyNode`: Constructs 3-level hierarchy tree (root → modality groups → camera/language/action nodes) from token boundary dict.
+- `build_gigabrain_hierarchy_meta(num_vision_tokens_per_camera: int, num_cameras: int, max_lang_length: int, action_chunk: int, vision_first: bool) -> dict`: Builds hierarchy metadata for GigaBrain-0's token layout. Returns dict with token_boundaries, total_seq_len, hierarchy tree, and group_assignments tensor.
+- `apply_hsa_bias_hooks(model, attention_bias: HierarchicalAttentionBias, target_layer_indices: list[int]) -> list`: Registers forward pre-hooks on Gemma2 decoder layers to inject HSA bias into attention scores. Returns list of hook handles.
+
+#### Classes:
+- `HierarchicalSelfAttention(nn.Module)`: Standalone HSA module implementing hierarchical attention via dynamic programming.
+  - `__init__(d_model: int, num_heads: int) -> None`: Initializes Q/K/V/O projections and LayerNorm.
+  - `forward(x: torch.Tensor, hierarchy: HierarchyNode) -> torch.Tensor`: Computes HSA attention respecting hierarchy tree via bottom-up/top-down passes.
+  - `_bottom_up(Q, K, V, node) -> dict`: Algorithm 2 — computes sufficient statistics per node recursively.
+  - `_top_down(Q, K, V, root, stats) -> torch.Tensor`: Algorithm 3 — computes hierarchical attention output by recursive aggregation.
+  - `_compute_stats_recursive(Q, K, V, node, stats) -> None`: Recursively computes node statistics with energy and interaction terms.
+  - `_compute_attention_recursive(Q, K, V, node, root, stats, output) -> None`: Recursively computes attention for each leaf group using intra-group softmax + inter-group sibling blending.
+- `HierarchicalAttentionBias(nn.Module)`: Learnable block-structured bias [num_groups, num_groups] for model surgery.
+  - `__init__(num_groups: int, seq_len: int, group_assignments: torch.Tensor) -> None`: Initializes group bias (zero-initialized) and registers group_assignments buffer.
+  - `forward() -> torch.Tensor`: Computes full [seq_len, seq_len] bias matrix from group_bias. torch.compile-compatible.
+- `HSAPreProcessor(nn.Module)`: Pre-processor applying one gated HSA layer.
+  - `__init__(d_model: int, num_heads: int, num_groups: int) -> None`: Initializes HSA module and sigmoid-gated scalar.
+  - `gate -> torch.Tensor`: Property returning sigmoid of learnable gate parameter.
+  - `forward(x: torch.Tensor, hierarchy: HierarchyNode) -> torch.Tensor`: Applies gated HSA: `(1-gate)*x + gate*HSA(x)`.
+
+---
+
 ### `giga_brain_0/giga_brain_0_trainer.py`
-**Summary:** Trainer class extending GigaTrain Trainer for GigaBrain0Policy model training, handling model initialization with optional pretrained checkpoints and performing forward passes with loss computation.
-**Dependencies:** `torch`, `giga_models.GigaBrain0Policy`, `giga_train.Trainer`, `giga_brain_0_loss.GigaBrain0Loss`
+**Summary:** Trainer class extending GigaTrain Trainer for GigaBrain0Policy model training, handling model initialization with optional pretrained checkpoints, optional HSA integration via module surgery, and performing forward passes with loss computation.
+**Dependencies:** `torch`, `giga_models.GigaBrain0Policy`, `giga_train.Trainer`, `giga_brain_0_loss.GigaBrain0Loss`, `hierarchical_self_attention` (HierarchicalAttentionBias, apply_hsa_bias_hooks, build_gigabrain_hierarchy_meta)
 
 #### Modules:
 - `GigaBrain0Trainer(Trainer)`: Custom trainer for GigaBrain0 model.
-  - `get_models(model_config: dict[str, Any]) -> GigaBrain0Policy`: Initializes GigaBrain0Policy from pretrained checkpoint or scratch, handles vision patch embedding resizing, and initializes loss function.
+  - `get_models(model_config: dict[str, Any]) -> GigaBrain0Policy`: Initializes GigaBrain0Policy from pretrained checkpoint or scratch, handles vision patch embedding resizing, applies HSA via `_apply_hsa()` if hsa_cfg provided, and initializes loss function.
+  - `_apply_hsa(model: GigaBrain0Policy, hsa_cfg: dict[str, Any]) -> None`: Attaches learnable block-structured HSA bias to target Gemma2 decoder layers via forward pre-hooks. Registers hsa_bias as model submodule for FSDP/optimizer compatibility.
   - `forward_step(batch_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]`: Performs forward pass with noise injection, model inference, and loss computation for training step.
 - `process_model(model: GigaBrain0Policy, model_config: dict[str, Any]) -> GigaBrain0Policy`: Processes pre-trained model with updated configuration by resizing patch embeddings and reloading weights.
 - `_resize_patch_embedding_weight(weight: torch.Tensor, target_in_channels: int) -> torch.Tensor`: Resizes patch embedding weights to match target input channels (handles both expansion and truncation).
@@ -220,7 +251,19 @@
   - `puppet_arm_publish_continuous_thread(left, right)`: Spawns a thread for continuous arm publishing.
   - `puppet_arm_publish_linear(left, right)`: Performs linear interpolation with 100 steps for arm trajectory execution.
   - `init_ros()`: Sets up ROS subscribers/publishers.
+  - `img_left_callback(data) -> None`: ROS subscriber callback for left wrist camera.
+  - `img_right_callback(data) -> None`: ROS subscriber callback for right wrist camera.
+  - `img_front_callback(data) -> None`: ROS subscriber callback for front/high camera.
+  - `img_left_depth_callback(data) -> None`: ROS subscriber callback for left wrist depth.
+  - `img_right_depth_callback(data) -> None`: ROS subscriber callback for right wrist depth.
+  - `img_front_depth_callback(data) -> None`: ROS subscriber callback for front depth.
+  - `puppet_arm_left_callback(data) -> None`: ROS subscriber callback for left arm joint state.
+  - `puppet_arm_right_callback(data) -> None`: ROS subscriber callback for right arm joint state.
+  - `robot_base_callback(data) -> None`: ROS subscriber callback for base odometry.
+  - `ctrl_callback(data) -> None`: ROS subscriber callback for control state.
+  - `get_ctrl_state() -> Any`: Thread-safe accessor for current control state.
   - `get_frame() -> tuple`: Returns synchronized camera images, joint states, and odometry.
+- `resize_with_pad(images: np.ndarray, height: int, width: int, method) -> np.ndarray`: Resizes batch of images maintaining aspect ratio with zero-padding to target h×w using PIL.
 
 ---
 

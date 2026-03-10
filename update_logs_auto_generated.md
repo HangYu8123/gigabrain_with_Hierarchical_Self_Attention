@@ -3,6 +3,12 @@
 Git commit history for the repository:
 
 ```
+commit b5eb5e3b22914043ee16d9bb83d50a5bcbf16c46
+Author: Hangyu8123 <yuhang8123@outlook.com>
+Date:   Tue Mar 10 00:57:48 2026 -0400
+
+    initialize for agentic workflow
+
 commit f223bed6b3a00923ad391ec3640bf764751b4c87
 Author: Hangyu8123 <yuhang8123@outlook.com>
 Date:   Tue Mar 10 00:34:43 2026 -0400

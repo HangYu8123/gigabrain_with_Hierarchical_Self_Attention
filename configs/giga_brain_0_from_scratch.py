@@ -138,6 +138,17 @@ config = dict(
         # If you want to train with learnable traj token and depth input, you can uncomment the following lines.
         # num_embodiments=4,
         # enable_learnable_traj_token=True,
+        # Hierarchical Self-Attention (arXiv:2509.15448)
+        # Adds learnable block-structured attention bias encoding the signal hierarchy
+        # (language / cam_high / cam_left_wrist / cam_right_wrist / action).
+        # Uncomment to enable HSA.
+        # hsa_cfg=dict(
+        #     num_vision_tokens_per_camera=256,  # 224x224 images with 14x14 patches
+        #     num_cameras=3,
+        #     max_lang_length=200,
+        #     action_chunk=action_chunk,
+        #     target_layer_indices=None,  # None = all decoder layers; or list e.g. [0, 1, 2]
+        # ),
     ),
     optimizers=dict(
         type='AdamW',

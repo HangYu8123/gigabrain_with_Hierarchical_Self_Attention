@@ -82,6 +82,13 @@ config = dict(
         enable_knowledge_insulation=False,
         enable_learnable_traj_token=False,
         num_embodiments=3,
+        # Hierarchical Self-Attention (arXiv:2509.15448) — uncomment to enable.
+        # hsa_cfg=dict(
+        #     num_vision_tokens_per_camera=256,
+        #     num_cameras=3,
+        #     max_lang_length=200,
+        #     action_chunk=action_chunk,
+        # ),
     ),
     optimizers=dict(
         type='AdamW',

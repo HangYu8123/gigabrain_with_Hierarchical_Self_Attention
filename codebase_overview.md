@@ -31,9 +31,9 @@ flowchart TD
         T1["1. DeltaActions<br/>- Converts absolute → delta actions<br/>- Per-embodiment binary masks"]
         T2["2. State Normalization<br/>- Per-embodiment norm using mean/std or q01/q99"]
         T3["3. Action Normalization<br/>- Maps to [-1, 1] range"]
-        T4["4. Image Transform<br/>- Resize to 224×224 with padding<br/>- Optional augmentation (train only)<br/>- Optional depth (4th channel)<br/>- 3 camera views"]
-        T5["5. Prompt Tokenization<br/>- PaliGemma2 + FastTokenizer<br/>- 5 sampling modes with configurable ratios<br/>- Outputs: lang_tokens, lang_masks, lang_att_masks,<br/>  lang_loss_masks, fast_action_indicator"]
-        T6["6. Padding<br/>- Pad state/action to 32 dims<br/>- Create padding masks"]
+        T4["4. Prompt Tokenization<br/>- PaliGemma2 + FastTokenizer<br/>- 5 sampling modes with configurable ratios<br/>- Outputs: lang_tokens, lang_masks, lang_att_masks,<br/>  lang_loss_masks, fast_action_indicator"]
+        T5["5. Padding<br/>- Pad state/action to 32 dims<br/>- Create padding masks"]
+        T6["6. Image Transform<br/>- Resize to 224×224 with padding<br/>- Optional augmentation (train only)<br/>- Optional depth (4th channel)<br/>- 3 camera views"]
         T7["7. Trajectory Transform (optional)<br/>- 2D trajectory prediction targets"]
         TRANSFORMS_MAIN --> T1 --> T2 --> T3 --> T4 --> T5 --> T6 --> T7
     end
@@ -95,3 +95,14 @@ flowchart TD
 - **giga-datasets**: Provides `LeRobotDataset`, `FastLeRobotDataset` (data loading)
 - **physical-intelligence/fast**: Provides `FastTokenizer` for discrete action encoding
 - **PaliGemma2**: Vision-language backbone (SigLIP encoder + Gemma2 decoder)
+
+## Planned Feature: Hierarchical Self-Attention (HSA)
+
+The module `giga_brain_0/hierarchical_self_attention.py` implements the Hierarchical Self-Attention mechanism from "Hierarchical Self-Attention: Generalizing Neural Attention Mechanics to Multi-Scale Problems" (arXiv:2509.15448, NeurIPS 2025). HSA structures multi-modal tokens (vision patches, language tokens, action tokens) into a hierarchy and computes block-constrained attention. Components include:
+
+- `HierarchicalSelfAttention`: Standalone HSA module (Algorithms 1-3 from the paper)
+- `HierarchicalAttentionBias`: Learnable block-structured attention bias injectable via hooks
+- `build_gigabrain_hierarchy_meta()`: Builds hierarchy metadata for the GigaBrain-0 token layout
+- `apply_hsa_bias_hooks()`: Applies HSA bias hooks to existing transformer layers
+
+**Status**: Partially integrated — trainer infrastructure ready (`_apply_hsa()` in `GigaBrain0Trainer`), but transforms do not yet compute `hierarchy_meta` and config files lack `hsa_cfg` blocks. See `docs/hsa_integration_plan.md` for the full integration plan.

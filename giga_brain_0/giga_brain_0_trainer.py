@@ -1,10 +1,13 @@
 from typing import Any
 
+import logging
 import torch
 from giga_models import GigaBrain0Policy
 from giga_train import Trainer
 
 from .giga_brain_0_loss import GigaBrain0Loss
+
+logger = logging.getLogger(__name__)
 
 
 class GigaBrain0Trainer(Trainer):
@@ -17,6 +20,9 @@ class GigaBrain0Trainer(Trainer):
         Returns:
             GigaBrain0Policy: The initialized GigaBrain0Policy model.
         """
+        # Extract HSA config before passing to model constructor
+        hsa_cfg = model_config.pop('hsa_cfg', None)
+
         if hasattr(model_config, 'pretrained'):
             pretrained = model_config.pop('pretrained')
             giga_brain_0 = GigaBrain0Policy.from_pretrained(pretrained)
@@ -39,12 +45,75 @@ class GigaBrain0Trainer(Trainer):
             # Make sure the lm_head and embed_tokens are tied
             assert giga_brain_0.paligemma_with_expert.lm_head.weight.data_ptr() == giga_brain_0.paligemma_with_expert.embed_tokens.weight.data_ptr()
 
+        # Apply Hierarchical Self-Attention if configured
+        self._hsa_hooks = []
+        if hsa_cfg is not None:
+            self._apply_hsa(giga_brain_0, hsa_cfg)
+
         giga_brain_0.to(self.device)
         giga_brain_0.train()
 
         self.loss_func = GigaBrain0Loss()
 
         return giga_brain_0
+
+    def _apply_hsa(self, model: GigaBrain0Policy, hsa_cfg: dict[str, Any]) -> None:
+        """Attach Hierarchical Self-Attention modules to the model.
+
+        Creates a learnable block-structured attention bias encoding the
+        signal hierarchy (language / camera views / action tokens) and
+        registers forward hooks on target attention layers to inject the
+        bias into attention scores before softmax.
+
+        The bias parameters are added as a submodule of the model so they
+        are automatically included in the optimizer and FSDP wrapping.
+
+        Args:
+            model: The GigaBrain0Policy model.
+            hsa_cfg: HSA configuration dictionary with optional keys:
+                - num_vision_tokens_per_camera (int): default 256
+                - num_cameras (int): default 3
+                - max_lang_length (int): default 200
+                - action_chunk (int): default 50
+                - vision_first (bool): default True; whether vision tokens
+                  precede language tokens in the model's internal sequence
+                - target_layer_indices (list[int] | None): which decoder
+                  layers to apply bias to; None = all layers
+        """
+        from .hierarchical_self_attention import (
+            HierarchicalAttentionBias,
+            apply_hsa_bias_hooks,
+            build_gigabrain_hierarchy_meta,
+        )
+
+        hierarchy_meta = build_gigabrain_hierarchy_meta(
+            num_vision_tokens_per_camera=hsa_cfg.get('num_vision_tokens_per_camera', 256),
+            num_cameras=hsa_cfg.get('num_cameras', 3),
+            max_lang_length=hsa_cfg.get('max_lang_length', 200),
+            action_chunk=hsa_cfg.get('action_chunk', 50),
+            vision_first=hsa_cfg.get('vision_first', True),
+        )
+
+        logger.info(
+            'HSA enabled: total_seq_len=%d, boundaries=%s',
+            hierarchy_meta['total_seq_len'],
+            hierarchy_meta['token_boundaries'],
+        )
+
+        hsa_bias = HierarchicalAttentionBias(
+            num_groups=5,
+            seq_len=hierarchy_meta['total_seq_len'],
+            group_assignments=hierarchy_meta['group_assignments'],
+        )
+
+        # Add as submodule so parameters are part of the model
+        # (picked up by optimizer, FSDP, and checkpointing)
+        model.add_module('hsa_bias', hsa_bias)
+
+        target_layers = hsa_cfg.get('target_layer_indices', None)
+        self._hsa_hooks = apply_hsa_bias_hooks(
+            model, model.hsa_bias, target_layers,
+        )
 
     def forward_step(self, batch_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         """Performs a forward pass and calculates the loss.
