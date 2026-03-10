@@ -13,37 +13,6 @@
 
 ## 📰 News
 - **`[2026/03/10]`** Added [Hierarchical Self-Attention (HSA)](https://arxiv.org/abs/2509.15448) (NeurIPS 2025) modules and trainer integration hooks into GigaBrain-0. HSA structures multi-modal tokens into a signal hierarchy, enabling the model to hierarchically focus on task-relevant cameras and spatial regions for improved robot manipulation. See the [HSA section](#-hierarchical-self-attention-hsa) below and [integration plan](docs/hsa_integration_plan.md) for details.
-- **`[2026/02/13]`** Released [GigaBrain-0.5M* technique report](https://gigabrain05m.github.io/). GigaBrain-0.5M* is a VLA that learns from world model-based reinforcement learning.
-- **`[2026/02/09]`** 🎉 GigaBrain-0.1 achieved 1st place on the RoboChallenge leaderboard.
-- **`[2026/02/02]`** Released GigaBrain-0.1 model weights, which follow the same usage as GigaBrain-0 but achieve better performance.
-- **`[2025/11/27]`** Released GigaBrain-0 model weights. This version of the model excludes depth images and intermediate 2D manipulation trajectories for more user-friendly use. However, the code supports these features — if your dataset contains them and you wish to use them, simply enable the corresponding options in the configuration.
-- **`[2025/11/27]`** Released the model architecture, as well as the pre-training and post-training implementations.
-
-## ✨ Introduction
-
-Training Vision-Language-Action (VLA) models for generalist robots typically requires large-scale real-world robot data, which is expensive and time-consuming to collect. The inefficiency of data collection severely limits the scalability, and generalization capacity of current VLA systems. Therefore, we introduce GigaBrain-0, a novel VLA foundation model empowered by world model-generated data. By leveraging world models to generate diverse data at scale, GigaBrain-0 significantly reduces reliance on real robot data while improving cross-task generalization. Our approach further improves policy robustness through RGBD input modeling and embodied Chain-of-Thought (CoT) supervision, enabling the model to reason about spatial geometry, object states, and long-horizon dependencies during task execution. This leads to substantial gains in real-world performance on dexterous, long-horizon, and mobile manipulation tasks. Extensive experiments demonstrate that GigaBrain-0 achieves superior generalization across variations in appearances (e.g., textures, colors), object placements, and camera viewpoints.
-
-![GigaBrain-0 Architecture](docs/source/imgs/giga_brain_0_architecture.png)
-
-## 💾 Data
-GigaBrain-0 was trained using approximately 1k hours of real-world robot data together with a large amount of World Model–generated data. GigaBrain-0.1 scales the training data to 10k hours, with the detailed data composition shown in the figure below.
-
-![GigaBrain-0 Architecture](docs/source/imgs/giga_brain_0.1_data.png)
-
-## 📊 Results
-
-Leveraging the efficient world-model data engine and innovations in model architecture, GigaBrain-0.1 has demonstrated rapid performance improvements. GigaBrain-0.1 outperforms GigaBrain-0 across all real-robot tasks and achieves performance on complex long-horizon tasks comparable to $\pi_{0.5}$.
-
-![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_performance.png)
-
-- Paper Towel Preparation*: Compared to the release with GigaBrain-0, the "Paper Towel Preparation" task has been re-evaluated under a new setting.
-
-
-## 🤖 RoboChallenge
-
-Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieved 1st place on the leaderboard.
-
-![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge.png)
 
 ## 🧠 Hierarchical Self-Attention (HSA)
 
@@ -92,6 +61,33 @@ The result: the model first decides "I should focus on the left wrist camera" (l
 <img src="docs/source/imgs/hsa_flat_attention.png" width="350">
 <p><i>(Left) HSA attention matrix with block constraint — contiguous tiles represent tied attention weights between token groups. (Right) Standard flat Softmax attention without hierarchy. From the <a href="https://arxiv.org/abs/2509.15448">HSA paper</a>, Figure 2. Images licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</i></p>
 </div>
+
+## ✨ Gigabrain Introduction
+
+Training Vision-Language-Action (VLA) models for generalist robots typically requires large-scale real-world robot data, which is expensive and time-consuming to collect. The inefficiency of data collection severely limits the scalability, and generalization capacity of current VLA systems. Therefore, we introduce GigaBrain-0, a novel VLA foundation model empowered by world model-generated data. By leveraging world models to generate diverse data at scale, GigaBrain-0 significantly reduces reliance on real robot data while improving cross-task generalization. Our approach further improves policy robustness through RGBD input modeling and embodied Chain-of-Thought (CoT) supervision, enabling the model to reason about spatial geometry, object states, and long-horizon dependencies during task execution. This leads to substantial gains in real-world performance on dexterous, long-horizon, and mobile manipulation tasks. Extensive experiments demonstrate that GigaBrain-0 achieves superior generalization across variations in appearances (e.g., textures, colors), object placements, and camera viewpoints.
+
+![GigaBrain-0 Architecture](docs/source/imgs/giga_brain_0_architecture.png)
+
+## 💾 Data
+GigaBrain-0 was trained using approximately 1k hours of real-world robot data together with a large amount of World Model–generated data. GigaBrain-0.1 scales the training data to 10k hours, with the detailed data composition shown in the figure below.
+
+![GigaBrain-0 Architecture](docs/source/imgs/giga_brain_0.1_data.png)
+
+## 📊 Results
+
+Leveraging the efficient world-model data engine and innovations in model architecture, GigaBrain-0.1 has demonstrated rapid performance improvements. GigaBrain-0.1 outperforms GigaBrain-0 across all real-robot tasks and achieves performance on complex long-horizon tasks comparable to $\pi_{0.5}$.
+
+![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_performance.png)
+
+- Paper Towel Preparation*: Compared to the release with GigaBrain-0, the "Paper Towel Preparation" task has been re-evaluated under a new setting.
+
+
+## 🤖 RoboChallenge
+
+Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieved 1st place on the leaderboard.
+
+![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge.png)
+
 
 ### Integration Architecture
 
