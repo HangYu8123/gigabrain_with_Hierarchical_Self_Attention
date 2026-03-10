@@ -2,11 +2,11 @@
 <div align="center" style="font-family: charter;">
     <h1> GigaBrain with Hierarchical Self Attention: A World Model-Powered Vision-Language-Action Model with Hierarchical Self Attention </h1>
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+<!-- [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project](https://img.shields.io/badge/Project-Page-99cc2)](https://gigabrain0.github.io/)
 [![Papers](https://img.shields.io/badge/Paper-ArXiv-99cc2)](https://arxiv.org/abs/2510.19430)
 [![HSA Paper](https://img.shields.io/badge/HSA_Paper-ArXiv-orange)](https://arxiv.org/abs/2509.15448)
-[![Models](https://img.shields.io/badge/Models-Huggingface-red?logo=huggingface)](https://huggingface.co/open-gigaai/models)
+[![Models](https://img.shields.io/badge/Models-Huggingface-red?logo=huggingface)](https://huggingface.co/open-gigaai/models) -->
 
 </div>
 
