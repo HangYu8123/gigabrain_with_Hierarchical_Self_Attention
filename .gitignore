@@ -126,3 +126,8 @@ venv.bak/
 gmon.out
 **tmp**
 3rdparty
+
+# Instructions files
+instructions/code_instructions.md
+instructions/debug_instructions.md
+instructions/initialize.md
