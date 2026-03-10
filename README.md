@@ -1,7 +1,6 @@
-![GigaBrain-0 Overview](docs/source/imgs/giga_brain_0_overview.png)
 
 <div align="center" style="font-family: charter;">
-    <h1> GigaBrain-0: A World Model-Powered Vision-Language-Action Model </h1>
+    <h1> GigaBrain with Hierarchical Self Attention: A World Model-Powered Vision-Language-Action Model with Hierarchical Self Attention </h1>
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project](https://img.shields.io/badge/Project-Page-99cc2)](https://gigabrain0.github.io/)
