@@ -6,11 +6,13 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Project](https://img.shields.io/badge/Project-Page-99cc2)](https://gigabrain0.github.io/)
 [![Papers](https://img.shields.io/badge/Paper-ArXiv-99cc2)](https://arxiv.org/abs/2510.19430)
+[![HSA Paper](https://img.shields.io/badge/HSA_Paper-ArXiv-orange)](https://arxiv.org/abs/2509.15448)
 [![Models](https://img.shields.io/badge/Models-Huggingface-red?logo=huggingface)](https://huggingface.co/open-gigaai/models)
 
 </div>
 
 ## 📰 News
+- **`[2026/03/10]`** Added [Hierarchical Self-Attention (HSA)](https://arxiv.org/abs/2509.15448) (NeurIPS 2025) modules and trainer integration hooks into GigaBrain-0. HSA structures multi-modal tokens into a signal hierarchy, enabling the model to hierarchically focus on task-relevant cameras and spatial regions for improved robot manipulation. See the [HSA section](#-hierarchical-self-attention-hsa) below and [integration plan](docs/hsa_integration_plan.md) for details.
 - **`[2026/02/13]`** Released [GigaBrain-0.5M* technique report](https://gigabrain05m.github.io/). GigaBrain-0.5M* is a VLA that learns from world model-based reinforcement learning.
 - **`[2026/02/09]`** 🎉 GigaBrain-0.1 achieved 1st place on the RoboChallenge leaderboard.
 - **`[2026/02/02]`** Released GigaBrain-0.1 model weights, which follow the same usage as GigaBrain-0 but achieve better performance.
@@ -42,6 +44,90 @@ Leveraging the efficient world-model data engine and innovations in model archit
 Using GigaBrain-0.1 to train on RoboChallenge tasks, we achieved 1st place on the leaderboard.
 
 ![GigaBrain-0 Performance](docs/source/imgs/giga_brain_0.1_robochallenge.png)
+
+## 🧠 Hierarchical Self-Attention (HSA)
+
+We integrate [**Hierarchical Self-Attention (HSA)**](https://arxiv.org/abs/2509.15448) (Amizadeh et al., NeurIPS 2025) into GigaBrain-0. HSA is a mathematically-derived attention mechanism that generalizes standard Softmax self-attention to multi-modal, multi-scale data by organizing tokens into a *signal hierarchy* tree. Instead of treating all tokens equally, HSA structures them into a tree where the attention matrix is provably the closest (in KL-divergence) to flat Softmax attention while respecting block constraints induced by the hierarchy (Theorem 3.2 in the paper).
+
+**Why HSA for robot manipulation?** GigaBrain-0's Gemma2 decoder processes ~1,000 multi-modal tokens per observation: vision patches from 3 cameras (768 tokens), language instruction tokens (up to 200), and action tokens (50). Standard flat attention computes $O(N^2)$ pairwise weights across all of these indiscriminately. HSA exploits the natural hierarchy in this token sequence — forcing the model to first decide *which modality* matters (language vs. vision vs. action), then *which camera view* contains the target object (overhead vs. left wrist vs. right wrist), and finally *which spatial region* within that camera to attend to. This hierarchical narrowing enables the robot to **"look closer"** at the objects it needs to manipulate, improving both computational efficiency and task-relevant focus.
+
+<div align="center">
+<img src="docs/source/imgs/hsa_signal_hierarchy.png" width="600">
+<p><i>Signal hierarchy representation from the <a href="https://arxiv.org/abs/2509.15448">HSA paper</a> (Figure 1). A nested signal is represented as a tree where different modalities and scales occupy different branches. Image licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</i></p>
+</div>
+
+### Signal Hierarchy for GigaBrain-0
+
+The multi-modal token sequence inside the Gemma2 decoder is organized into the following hierarchy:
+
+```
+Root (entire multi-modal observation)
+├── Language Group (≤200 tokens)
+│   └── lang_token_0, lang_token_1, ..., lang_token_{N-1}
+│
+├── Vision Group (768 tokens = 3 × 256 SigLIP patches)
+│   ├── cam_high (256 patches)        — overhead view
+│   ├── cam_left_wrist (256 patches)   — left wrist camera
+│   └── cam_right_wrist (256 patches)  — right wrist camera
+│
+└── Action Group (50 tokens)
+    └── action_token_0, action_token_1, ..., action_token_{K-1}
+```
+
+| Level | Nodes | What it represents for manipulation |
+|-------|-------|-------------------------------------|
+| 0 (Root) | 1 | Full multi-modal observation |
+| 1 (Modality) | 3 | Language instructions vs. visual observations vs. action context |
+| 2 (Sub-modality) | 5 | Individual camera views + language + action as leaf-parent groups |
+| 3 (Leaves) | ~1,018 | Fine-grained patch/token-level attention within each group |
+
+### How HSA Helps Robots "Look Closer"
+
+Instead of computing $O(N^2) \approx O(10^6)$ independent attention weights between all token pairs, HSA constrains the attention matrix to be **block-constant** between leaves of sibling nodes. For example, all 256 patches in `cam_high` receive the same attention weight toward all 256 patches in `cam_left_wrist`. This reduces the attention degrees of freedom from $O(N^2)$ to $O(M \cdot b^2)$ where $M \approx 6$ (number of families in the hierarchy) and $b = 3$ (maximum branching factor).
+
+The result: the model first decides "I should focus on the left wrist camera" (level-1/2 attention), then within that camera, refines attention to the specific patches where the target object is located (level-3 attention). This hierarchical narrowing — from modality selection to camera selection to spatial region selection — is what enables the robot to "look closer" at objects of interest.
+
+<div align="center">
+<img src="docs/source/imgs/hsa_block_attention_constrained.png" width="350">
+<img src="docs/source/imgs/hsa_flat_attention.png" width="350">
+<p><i>(Left) HSA attention matrix with block constraint — contiguous tiles represent tied attention weights between token groups. (Right) Standard flat Softmax attention without hierarchy. From the <a href="https://arxiv.org/abs/2509.15448">HSA paper</a>, Figure 2. Images licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</i></p>
+</div>
+
+### Integration Architecture
+
+Since `GigaBrain0Policy` is provided by the external `giga-models` package, HSA is integrated via **post-instantiation hook injection** — a lightweight approach that does not modify any model internals:
+
+1. **Hierarchy construction**: `build_gigabrain_hierarchy_meta()` computes the token boundaries and group assignments for the signal hierarchy based on the model's token layout.
+2. **Learnable attention bias**: A `HierarchicalAttentionBias` module maintains a learnable 5×5 group bias matrix (zero-initialized) that encodes inter-group attention preferences. This module is added to the model as a submodule, so its parameters participate in optimization, FSDP wrapping, and checkpointing.
+3. **Hook registration**: `apply_hsa_bias_hooks()` registers forward pre-hooks on target Gemma2 decoder attention layers. Before each attention computation, the hook expands the group bias into a full $[S, S]$ bias matrix and adds it to the attention mask.
+
+This approach is compatible with `torch.compile`, FSDP distributed training, and activation checkpointing. When HSA is not configured, no hooks are registered and the model behaves identically to the original.
+
+<div align="center">
+<img src="docs/source/imgs/hsa_transformer_encoder.png" width="500">
+<p><i>Hierarchical Transformer Encoder (HTE) layer architecture from the <a href="https://arxiv.org/abs/2509.15448">HSA paper</a>, Figure 4. HSA replaces Softmax attention while maintaining the same input/output interface. Image licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</i></p>
+</div>
+
+Two HSA components are implemented in [`giga_brain_0/hierarchical_self_attention.py`](giga_brain_0/hierarchical_self_attention.py):
+
+- **`HierarchicalSelfAttention`**: Standalone HSA module implementing the paper's dynamic programming algorithm (Algorithms 1–3) with O(M·b²) complexity.
+- **`HierarchicalAttentionBias`**: Learnable block-structured attention bias injectable via hooks — the approach currently used in the trainer.
+
+### HSA Integration Status
+
+| Component | Status |
+|-----------|--------|
+| Core HSA module (`HierarchicalSelfAttention`) | ✅ Implemented |
+| Learnable attention bias (`HierarchicalAttentionBias`) | ✅ Implemented |
+| Pre-processor (`HSAPreProcessor`) | ✅ Implemented |
+| Hierarchy construction (`build_gigabrain_hierarchy_meta`) | ✅ Implemented |
+| Hook registration (`apply_hsa_bias_hooks`) | ✅ Implemented |
+| Trainer integration (`_apply_hsa()` in `GigaBrain0Trainer`) | ✅ Implemented |
+| Transform `hierarchy_meta` computation | ⬜ Pending |
+| Config `hsa_cfg` blocks in training configs | ⬜ Pending |
+| End-to-end training benchmarks | ⬜ Pending |
+
+HSA is fully opt-in via the `hsa_cfg` configuration block. When omitted, the training pipeline is completely unaffected. See [`docs/hsa_integration_plan.md`](docs/hsa_integration_plan.md) for the full integration roadmap.
 
 ## ⚡ Installation
 
@@ -241,5 +327,20 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
   archivePrefix={arXiv},
   primaryClass={cs.CV},
   url={https://arxiv.org/abs/2510.19430},
+}
+```
+
+If you use the Hierarchical Self-Attention feature, please also cite:
+
+```bibtex
+@inproceedings{amizadeh2025hierarchical,
+  title={Hierarchical Self-Attention: Generalizing Neural Attention Mechanics to Multi-Scale Problems},
+  author={Amizadeh, Saeed and Abdali, Sara and Li, Yinheng and Koishida, Kazuhito},
+  booktitle={The Thirty-Ninth Annual Conference on Neural Information Processing Systems (NeurIPS 2025)},
+  year={2025},
+  eprint={2509.15448},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  url={https://arxiv.org/abs/2509.15448},
 }
 ```
